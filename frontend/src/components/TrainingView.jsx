@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
+// URL do seu backend no Render
+const BACKEND_URL = 'https://acido-klur.onrender.com';
+
 const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // NOVO: Estado de erro
+  const [error, setError] = useState(null);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
 
   const fetchQuestions = async () => {
@@ -18,7 +21,8 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         count: numQuestions || 1
       });
 
-      const res = await fetch(`http://localhost:3001/api/generate-question?${query}`, {
+      // CORRIGIDO: Agora aponta para o Render
+      const res = await fetch(`${BACKEND_URL}/api/generate-question?${query}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -26,8 +30,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
 
       const data = await res.json();
       const questionsArray = Array.isArray(data) ? data : [data];
-      
-      // Validação básica para evitar crashes se a IA mandar lixo
       const validQuestions = questionsArray.filter(q => q && q.options && q.text);
       
       if (validQuestions.length === 0) throw new Error("A IA gerou um formato inválido.");
@@ -57,7 +59,8 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     }
 
     try {
-      await fetch('http://localhost:3001/api/submit', {
+      // CORRIGIDO: Agora aponta para o Render
+      await fetch(`${BACKEND_URL}/api/submit`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -90,7 +93,8 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
       const totalXP = (correctAnswersCount * 50);
       const errosCount = questions.length - correctAnswersCount;
 
-      await fetch('http://localhost:3001/api/update-stats', {
+      // CORRIGIDO: Agora aponta para o Render
+      await fetch(`${BACKEND_URL}/api/update-stats`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -108,7 +112,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     }
   };
 
-  // UI de Erro
+  // ... (restante do código de UI permanece igual)
   if (error) return (
     <div className="text-center py-20 bg-white rounded-[3rem] shadow-xl border border-red-100 max-w-2xl mx-auto">
       <div className="text-4xl mb-4">⚠️</div>
@@ -130,13 +134,11 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto pb-10">
-      {/* HUD de Progresso */}
       <div className="mb-8 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
           <span>Módulo de Treinamento: {currentIndex + 1} / {questions.length}</span>
           <div className="flex gap-3">
              <span className="text-emerald-500">Acertos: {correctAnswersCount}</span>
-             {/* Cálculo dinâmico de erros para feedback em tempo real */}
              <span className="text-rose-400">Erros: {currentIndex - correctAnswersCount + (isAnswered && selectedOption !== currentQuestion.correctAnswer ? 1 : 0)}</span>
           </div>
         </div>
@@ -148,7 +150,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         </div>
       </div>
 
-      {/* Card da Questão */}
       <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-indigo-900/5 border border-slate-100 mb-6">
         <div className="inline-block bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest mb-6">
           {currentQuestion?.topic || 'Estequiometria'}
@@ -161,7 +162,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         <div className="grid grid-cols-1 gap-4">
           {currentQuestion?.options.map((option, index) => {
             let btnClass = "bg-slate-50 border-slate-200 hover:border-indigo-200 hover:bg-white";
-            
             if (isAnswered) {
               if (index === currentQuestion.correctAnswer) {
                 btnClass = "bg-emerald-50 border-emerald-500 text-emerald-800 shadow-lg shadow-emerald-200/20";
@@ -191,7 +191,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         </div>
       </div>
 
-      {/* Feedback de Resolução */}
       {isAnswered && (
         <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
           <div className="flex items-start gap-6 mb-10">
@@ -202,7 +201,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
               <h3 className="text-xl font-black mb-3 italic uppercase tracking-tighter">
                 {selectedOption === currentQuestion.correctAnswer ? 'Análise Perfeita!' : 'Falha na Reação!'}
               </h3>
-              {/* Formatação para garantir legibilidade da explicação */}
               <div className="text-slate-400 text-sm leading-relaxed font-mono bg-slate-800/40 p-5 rounded-2xl border border-white/5 whitespace-pre-line">
                 {currentQuestion.explanation?.replaceAll('. ', '.\n\n')}
               </div>
