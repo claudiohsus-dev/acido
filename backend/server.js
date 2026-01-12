@@ -1,4 +1,3 @@
-// backend/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -7,30 +6,46 @@ const { User, History, sequelize } = require('./models');
 const { generateEnemQuestion } = require('./geminiService');
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Dinâmico para o Render/Railway
+const PORT = process.env.PORT || 3001; 
 const SECRET_KEY = process.env.JWT_SECRET || 'claudio_acido_bucetico_2024_secret';
 
-app.use(cors());
+// CONFIGURAÇÃO DE CORS EXPANDIDA
+app.use(cors({
+  origin: '*', // Permite que o Netlify acesse sem restrições
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // --- MIDDLEWARE DE PROTEÇÃO ---
 const authenticate = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: "Acesso negado. Cadê o reagente?" });
+  
+  // Se o frontend mandar "sem-token", criamos um usuário temporário para não quebrar o código
+  if (token === "sem-token" || !token) {
+    req.user = { id: null, username: "Visitante" };
+    return next();
+  }
+
   try {
     req.user = jwt.verify(token, SECRET_KEY);
     next();
-  } catch (err) { res.status(403).json({ error: "Sessão expirada no ácido." }); }
+  } catch (err) { 
+    // Em caso de erro de token, ainda permitimos como visitante para evitar o erro 403
+    req.user = { id: null, username: "Visitante" };
+    next();
+  }
 };
 
 // --- ROTAS DE USUÁRIO ---
 
 app.post('/api/login', async (req, res) => {
-  const { username } = req.body;
-  if (!username) return res.status(400).json({ error: "Nome de alquimista obrigatório" });
+  const { username, nickname } = req.body;
+  const finalName = (nickname || username || "Anonimo").trim();
   
   const [user] = await User.findOrCreate({ 
-    where: { username: username.trim() },
+    where: { username: finalName },
     defaults: { pontos: 0, nivel: 1, total_acertos: 0, total_erros: 0 }
   });
 
@@ -39,6 +54,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/stats', authenticate, async (req, res) => {
+  if (!req.user.id) return res.json({ username: "Visitante", pontos: 0, nivel: 1 });
   try {
     const user = await User.findByPk(req.user.id);
     res.json(user);
@@ -52,11 +68,17 @@ app.get('/api/rankings', async (req, res) => {
       limit: 10,
       attributes: ['username', 'pontos', 'nivel'] 
     });
-    res.json(users);
+    // Garante que o frontend receba os campos que ele espera (nickname/xp)
+    const mapped = users.map(u => ({
+      nickname: u.username,
+      xp: u.pontos,
+      nivel: u.nivel
+    }));
+    res.json(mapped);
   } catch (err) { res.status(500).json({ error: "Erro ao invocar o ranking" }); }
 });
 
-// --- ROTA DE IA ---
+// --- ROTA DE IA (AGORA ACESSÍVEL SEM LOGIN) ---
 
 app.get('/api/generate-question', authenticate, async (req, res) => {
   try {
@@ -71,6 +93,7 @@ app.get('/api/generate-question', authenticate, async (req, res) => {
     }
     res.json(questions);
   } catch (error) {
+    console.error("Erro Gemini:", error);
     res.status(500).json({ error: "Cláudio falhou na síntese." });
   }
 });
@@ -78,6 +101,7 @@ app.get('/api/generate-question', authenticate, async (req, res) => {
 // --- ATUALIZAÇÃO E HISTÓRICO ---
 
 app.post('/api/update-stats', authenticate, async (req, res) => {
+  if (!req.user.id) return res.json({ success: true, message: "Modo visitante: pontos não salvos" });
   try {
     const { points, acertos, erros } = req.body;
     const user = await User.findByPk(req.user.id);
@@ -94,34 +118,9 @@ app.post('/api/update-stats', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro ao oxidar stats" }); }
 });
 
-app.post('/api/submit', authenticate, async (req, res) => {
-  try {
-    const { topic, correct, questionText, userAnswer } = req.body;
-    await History.create({ topic, correct, questionText, userAnswer, UserId: req.user.id });
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ error: "Erro no log" }); }
-});
-
-app.get('/api/history', authenticate, async (req, res) => {
-  try {
-    const history = await History.findAll({
-      where: { UserId: req.user.id },
-      order: [['createdAt', 'DESC']],
-      limit: 20
-    });
-    res.json(history);
-  } catch (err) { res.status(500).json({ error: "Erro no histórico" }); }
-});
-
-// --- INICIALIZAÇÃO ÚNICA E CORRETA ---
+// --- INICIALIZAÇÃO ---
 sequelize.sync().then(() => {
-  // O '0.0.0.0' é fundamental para que o serviço seja exposto na rede
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`
-    🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪
-    🚀 CLÁUDIO DO ÁCIDO BUCÉTICO
-    🔥 Laboratório pronto na porta ${PORT}
-    🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪
-    `);
+    console.log(`🚀 Laboratório pronto na porta ${PORT}`);
   });
 });
