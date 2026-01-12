@@ -56,7 +56,8 @@ const App = () => {
       const res = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
+        // ALTERAÇÃO 1: O servidor espera 'nickname' conforme sua tabela SQL
+        body: JSON.stringify({ nickname: username }) 
       });
       const data = await res.json();
       
@@ -121,13 +122,15 @@ const App = () => {
             <h1 className="text-2xl font-black text-slate-900 leading-none italic">
                CLÁUDIO DO <span className="text-lime-600 uppercase">Ácido Bucético</span>
             </h1>
-            <p className="text-slate-500 font-medium italic">@{user?.username}</p>
+            {/* ALTERAÇÃO 2: O objeto user do banco vem com 'nickname' */}
+            <p className="text-slate-500 font-medium italic">@{user?.nickname || user?.username}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-end">
               <div className="flex gap-2">
-                <span className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 font-bold text-lime-600">🧪 {user?.pontos} XP</span>
-                <span className="bg-slate-900 px-4 py-2 rounded-xl shadow-md font-bold text-lime-400 border border-lime-500/50">Lvl {user?.nivel}</span>
+                {/* ALTERAÇÃO 3: Ajustado para usar 'xp' que é o nome da sua coluna no SQL */}
+                <span className="bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 font-bold text-lime-600">🧪 {user?.xp || 0} XP</span>
+                <span className="bg-slate-900 px-4 py-2 rounded-xl shadow-md font-bold text-lime-400 border border-lime-500/50">Lvl {user?.nivel || 1}</span>
               </div>
             </div>
             <button onClick={handleLogout} className="p-2 hover:bg-red-50 text-red-400 rounded-lg transition-colors border border-transparent hover:border-red-100 font-bold">
@@ -203,9 +206,10 @@ const App = () => {
                   <div key={i} className={`flex justify-between items-center p-3 rounded-xl ${i === 0 ? 'bg-lime-50 border border-lime-200 shadow-sm' : 'bg-slate-50'}`}>
                     <div className="flex items-center gap-3">
                       <span className={`font-bold ${i === 0 ? 'text-lime-600' : 'text-slate-400'}`}>{i+1}º</span>
-                      <span className="font-bold text-slate-700">{r.username}</span>
+                      {/* ALTERAÇÃO 4: Ranking também usa nickname */}
+                      <span className="font-bold text-slate-700">{r.nickname || r.username}</span>
                     </div>
-                    <span className="font-black text-slate-800">{r.pontos} XP</span>
+                    <span className="font-black text-slate-800">{r.xp || r.pontos} XP</span>
                   </div>
                 ))}
               </div>
