@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import TrainingView from './components/TrainingView'; 
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://acido-klur.onrender.com/api';
-
+// Remova a lógica complexa e coloque o link direto para testar
+const API_URL = 'https://acido-klur.onrender.com/api';
 const App = () => {
   // Usuário "fake" para o sistema não dar erro de undefined
   const [user, setUser] = useState({ nickname: 'Visitante', xp: 0, nivel: 1 });
