@@ -32,6 +32,7 @@ const authenticate = (req, res, next) => {
 
 // --- ROTAS ---
 
+// 1. LOGIN
 app.post('/api/login', async (req, res) => {
   try {
     const { nickname } = req.body;
@@ -45,17 +46,15 @@ app.post('/api/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro no login" }); }
 });
 
-// GERAÇÃO DE QUESTÕES (Agora aceita count)
+// 2. GERAÇÃO DE QUESTÕES
 app.get('/api/generate-question', authenticate, async (req, res) => {
   try {
     const topic = req.query.topic || "Estequiometria";
     const prompt = req.query.customPrompt || "";
     const count = Math.min(parseInt(req.query.count) || 1, 5); 
     
-    // Chama o serviço uma única vez
     const questions = await generateEnemQuestion(topic, prompt, count);
     
-    // Adiciona IDs únicos para o React
     const questionsWithIds = questions.map((q, i) => ({
       ...q,
       id: `${Date.now()}-${i}`
@@ -67,7 +66,26 @@ app.get('/api/generate-question', authenticate, async (req, res) => {
   }
 });
 
-// ATUALIZAR ESTATÍSTICAS (Salva no fim do treino)
+// 3. BUSCAR ESTATÍSTICAS (A que estava dando 404)
+app.get('/api/stats', authenticate, async (req, res) => {
+  if (!req.user.id) return res.status(401).json({ error: "Acesso negado" });
+  
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+
+    res.json({
+      username: user.username,
+      total_acertos: user.total_acertos || 0,
+      total_erros: user.total_erros || 0,
+      nivel: user.nivel || 1
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao buscar estatísticas" });
+  }
+});
+
+// 4. ATUALIZAR ESTATÍSTICAS
 app.post('/api/update-stats', authenticate, async (req, res) => {
   if (!req.user.id) return res.json({ success: true, msg: "Visitante não salva progresso" });
   
@@ -77,7 +95,7 @@ app.post('/api/update-stats', authenticate, async (req, res) => {
     
     const novosAcertos = (user.total_acertos || 0) + (acertos || 0);
     const novosErros = (user.total_erros || 0) + (erros || 0);
-    const novoNivel = Math.floor(novosAcertos / 10) + 1; // Sobe de nível a cada 10 acertos
+    const novoNivel = Math.floor(novosAcertos / 10) + 1;
 
     await user.update({
       total_acertos: novosAcertos,
@@ -89,7 +107,7 @@ app.post('/api/update-stats', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro ao salvar stats" }); }
 });
 
-// RANKING
+// 5. RANKING
 app.get('/api/rankings', async (req, res) => {
   try {
     const users = await User.findAll({ 
@@ -97,7 +115,6 @@ app.get('/api/rankings', async (req, res) => {
       limit: 10,
       attributes: ['username', 'total_acertos', 'nivel'] 
     });
-    // Formata para o frontend
     const mapped = users.map(u => ({
       nickname: u.username,
       xp: u.total_acertos,
@@ -107,6 +124,11 @@ app.get('/api/rankings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro no ranking" }); }
 });
 
+// --- INICIALIZAÇÃO ---
 sequelize.sync().then(() => {
-  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Cláudio está online na porta ${PORT}`);
+  });
+}).catch(err => {
+  console.error("❌ Erro ao sincronizar banco de dados:", err);
 });
