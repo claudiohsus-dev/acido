@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// URL do seu backend no Render
+// 1. Defina a URL base do seu Render
 const BACKEND_URL = 'https://acido-klur.onrender.com';
 
 const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
@@ -12,6 +12,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
   const [error, setError] = useState(null);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
 
+  // 2. BUSCA DE QUESTÕES (CORRIGIDO PARA O NOVO BACKEND)
   const fetchQuestions = async () => {
     setLoading(true);
     setError(null);
@@ -21,7 +22,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         count: numQuestions || 1
       });
 
-      // CORRIGIDO: Agora aponta para o Render
       const res = await fetch(`${BACKEND_URL}/api/generate-question?${query}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -29,14 +29,9 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
       if (!res.ok) throw new Error("Falha ao sintetizar as questões.");
 
       const data = await res.json();
-      const questionsArray = Array.isArray(data) ? data : [data];
-      const validQuestions = questionsArray.filter(q => q && q.options && q.text);
-      
-      if (validQuestions.length === 0) throw new Error("A IA gerou um formato inválido.");
-      
-      setQuestions(validQuestions);
+      // Garante que seja sempre um array, mesmo se vier 1 questão
+      setQuestions(Array.isArray(data) ? data : [data]);
     } catch (err) {
-      console.error("Erro ao carregar questões:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -47,7 +42,8 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     fetchQuestions();
   }, []);
 
-  const handleAnswer = async (index) => {
+  // 3. REGISTRO LOCAL (SEM FETCH PARA EVITAR ERRO 404)
+  const handleAnswer = (index) => {
     if (isAnswered) return;
     
     setSelectedOption(index);
@@ -57,24 +53,33 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     if (isCorrect) {
       setCorrectAnswersCount(prev => prev + 1);
     }
+    // Removemos o fetch individual daqui para não dar erro,
+    // já que o backend agora só salva no final.
+  };
 
+  // 4. FINALIZAR E SALVAR RANKING
+  const finalizarTreino = async () => {
     try {
-      // CORRIGIDO: Agora aponta para o Render
-      await fetch(`${BACKEND_URL}/api/submit`, {
+      const errosCount = questions.length - correctAnswersCount;
+
+      const res = await fetch(`${BACKEND_URL}/api/update-stats`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ 
-          topic: questions[currentIndex].topic || "Estequiometria",
-          correct: isCorrect,
-          questionText: questions[currentIndex].text,
-          userAnswer: questions[currentIndex].options[index]
+          acertos: correctAnswersCount, 
+          erros: errosCount 
         })
       });
+
+      if (!res.ok) console.error("Erro ao salvar no banco");
+      
+      onFinish(); 
     } catch (err) {
-      console.error("Erro ao registrar no histórico");
+      console.error("Erro na conexão final:", err);
+      onFinish();
     }
   };
 
@@ -88,31 +93,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     }
   };
 
-  const finalizarTreino = async () => {
-    try {
-      const totalXP = (correctAnswersCount * 50);
-      const errosCount = questions.length - correctAnswersCount;
-
-      // CORRIGIDO: Agora aponta para o Render
-      await fetch(`${BACKEND_URL}/api/update-stats`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          points: totalXP, 
-          acertos: correctAnswersCount, 
-          erros: errosCount 
-        })
-      });
-      onFinish(); 
-    } catch (err) {
-      onFinish();
-    }
-  };
-
-  // ... (restante do código de UI permanece igual)
+  // -- INTERFACE (UI) --
   if (error) return (
     <div className="text-center py-20 bg-white rounded-[3rem] shadow-xl border border-red-100 max-w-2xl mx-auto">
       <div className="text-4xl mb-4">⚠️</div>
