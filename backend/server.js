@@ -87,19 +87,26 @@ app.get('/api/rankings', async (req, res) => {
 });
 
 // --- ROTA DE IA ---
+// --- ROTA DE IA (CORRIGIDA PARA LOTE) ---
 app.get('/api/generate-question', authenticate, async (req, res) => {
   try {
     const topic = req.query.topic || "Estequiometria";
     const prompt = req.query.customPrompt || "";
-    const count = Math.min(parseInt(req.query.count) || 1, 10); 
+    // Limitamos a 5 para não estourar o limite de tokens da Groq de uma vez
+    const count = Math.min(parseInt(req.query.count) || 1, 5); 
     
-    const questions = [];
-    for (let i = 0; i < count; i++) {
-      const q = await generateEnemQuestion(topic, prompt);
-      questions.push({ ...q, id: `${Date.now()}-${i}` });
-    }
-    res.json(questions);
+    // Agora chamamos uma única vez pedindo 'count' questões
+    const questions = await generateEnemQuestion(topic, prompt, count);
+    
+    // Adicionamos IDs únicos para o React não se perder
+    const questionsWithIds = questions.map((q, i) => ({
+      ...q,
+      id: `${Date.now()}-${i}`
+    }));
+
+    res.json(questionsWithIds);
   } catch (error) {
+    console.error("Erro na Rota:", error);
     res.status(500).json({ error: "Cláudio falhou na síntese." });
   }
 });

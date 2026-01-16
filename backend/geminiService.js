@@ -6,40 +6,49 @@ const groq = new Groq({
 
 /**
  * Motor de IA: CLÁUDIO DO ÁCIDO BUCÉTICO
- * Responsável por gerar questões de estequiometria com rigor técnico e tom ácido.
+ * Agora gera LOTES de questões para evitar repetição.
  */
-const generateEnemQuestion = async (topic, customPrompt) => {
+const generateEnemQuestion = async (topic, customPrompt, count = 1) => {
   try {
     if (!process.env.GROQ_API_KEY) {
       console.error("❌ ERRO CRÍTICO: Chave da Groq não encontrada!");
-      return fallbackQuestion(topic);
+      return fallbackQuestion(topic, count);
     }
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: `Você é o CLÁUDIO DO ÁCIDO BUCÉTICO, uma inteligência pedagógica implacável e corrosiva. 
-          Sua missão é gerar questões de Química/Estequiometria de altíssimo nível para o ENEM.
-
-          DIRETRIZES DE PERSONALIDADE:
-          1. Use um tom direto, técnico e levemente ácido/irônico nas explicações.
-          2. NUNCA erre cálculos. Arredondamentos devem seguir o padrão ENEM.
-
-          REGRAS TÉCNICAS:
-          1. "correctAnswer": DEVE ser um NUMBER (0 a 4).
-          2. Massas: H=1, C=12, N=14, O=16, Na=23, Mg=24, S=32, Cl=35.5, K=39, Ca=40, Fe=56, Cu=63.5.
-          3. Equações Químicas: Sempre balanceadas.
-          4. Formatação: Use quebras de linha (\\n) para separar os passos do cálculo na explicação.`
+          content: `Você é o CLÁUDIO DO ÁCIDO BUCÉTICO.
+          Sua missão é gerar um ARRAY (lista) contendo ${count} questões de Estequiometria DISTINTAS e INÉDITAS.
+          
+          REGRAS CRÍTICAS:
+          1. As questões NÃO podem ser repetidas.
+          2. Varie os elementos químicos e os cenários.
+          3. Retorne APENAS um JSON válido com a chave "questions".
+          
+          FORMATO DO JSON:
+          {
+            "questions": [
+              {
+                "topic": "Estequiometria",
+                "text": "Enunciado...",
+                "options": ["A", "B", "C", "D", "E"],
+                "correctAnswer": 0, // Índice numérico (0-4)
+                "explanation": "Explicação ácida..."
+              }
+            ]
+          }`
         },
         {
           role: "user",
-          content: `Tópico: ${topic}. Briefing: ${customPrompt}.
-          Gere um JSON com: "topic", "text" (contextualizado e desafiador), "options" (5 alternativas), "correctAnswer" (índice) e "explanation" (passo a passo).`
+          content: `Gere ${count} questões sobre: ${topic}.
+          Contexto extra: ${customPrompt || "Desafios variados de pureza e rendimento"}.
+          Mantenha rigor nos cálculos e sarcasmo nas explicações.`
         }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.1, // Mantém o Cláudio focado nos números
+      temperature: 0.5, // Aumentamos um pouco para garantir variedade
       response_format: { "type": "json_object" }
     });
 
@@ -47,31 +56,36 @@ const generateEnemQuestion = async (topic, customPrompt) => {
     const cleanJson = content.replace(/```json|```/g, "").trim();
     const parsedContent = JSON.parse(cleanJson);
 
-    // Validação de Integridade
-    if (!parsedContent.text || !Array.isArray(parsedContent.options) || parsedContent.options.length !== 5) {
-      throw new Error("Cláudio gerou um reagente impuro (JSON inválido).");
-    }
+    // Validação: Se a IA devolveu o objeto, pegamos o array 'questions'
+    const questionsArray = parsedContent.questions || [parsedContent];
 
-    console.log(`🧪 Cláudio sintetizou uma questão sobre: ${topic}`);
-    return parsedContent;
+    console.log(`🧪 Cláudio sintetizou um lote de ${questionsArray.length} questões.`);
+    return questionsArray;
 
   } catch (error) {
     console.error("⚠️ O Ácido reagiu mal:", error.message);
-    return fallbackQuestion(topic);
+    return fallbackQuestion(topic, count);
   }
 };
 
 /**
- * Fallback: Quando o laboratório explode, usamos esta reserva.
+ * Fallback que gera array para não quebrar o frontend
  */
-function fallbackQuestion(topic = "Estequiometria") {
-  return {
+function fallbackQuestion(topic, count) {
+  const baseQuestion = {
     topic: topic,
-    text: "O Ácido Clorídrico (HCl) reage com Hidróxido de Sódio (NaOH) em uma reação de neutralização. Se Cláudio misturar 36,5g de HCl com excesso de NaOH, qual a massa de NaCl formada? (Na=23, Cl=35.5, H=1, O=16)",
-    options: ["29,25g", "40,00g", "58,50g", "73,00g", "117,00g"],
+    text: "O sistema de IA está temporariamente indisponível (FALHA NA SÍNTESE). Mas resolva esta: Qual a massa de 1 mol de H2O?",
+    options: ["10g", "16g", "18g", "20g", "2g"],
     correctAnswer: 2,
-    explanation: "Reação: HCl + NaOH -> NaCl + H2O.\\n1. Massa molar HCl = 36,5g/mol.\\n2. Massa molar NaCl = 58,5g/mol.\\n3. Como usamos exatamente 1 mol de HCl, produziremos 1 mol de NaCl (58,5g)."
+    explanation: "H=1, O=16. Logo, 2*1 + 16 = 18g/mol."
   };
+  
+  // Retorna um array com o número de questões pedidas (repetidas neste caso, pois é erro)
+  return Array(count).fill(baseQuestion).map((q, i) => ({
+    ...q, 
+    id: `fallback-${i}`,
+    text: `(Modo de Segurança ${i+1}) ${q.text}`
+  }));
 }
 
 module.exports = { generateEnemQuestion };
