@@ -6,85 +6,67 @@ const groq = new Groq({
 
 /**
  * Motor de IA: CLÁUDIO DO ÁCIDO BUCÉTICO
- * Agora gera LOTES de questões para evitar repetição.
+ * Gera lotes de questões para garantir variedade e performance.
  */
 const generateEnemQuestion = async (topic, customPrompt, count = 1) => {
   try {
     if (!process.env.GROQ_API_KEY) {
-      console.error("❌ ERRO CRÍTICO: Chave da Groq não encontrada!");
-      return fallbackQuestion(topic, count);
+      throw new Error("Chave da API Groq não configurada.");
     }
 
-    const chatCompletion = await groq.chat.completions.create({
+    // Prompt otimizado para JSON Array
+    const completion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: `Você é o CLÁUDIO DO ÁCIDO BUCÉTICO.
-          Sua missão é gerar um ARRAY (lista) contendo ${count} questões de Estequiometria DISTINTAS e INÉDITAS.
+          content: `Você é o CLÁUDIO, um químico genial e sarcástico.
+          Sua tarefa: Gerar um JSON contendo uma lista de ${count} questões de Química (Nível ENEM) sobre o tema solicitado.
           
-          REGRAS CRÍTICAS:
-          1. As questões NÃO podem ser repetidas.
-          2. Varie os elementos químicos e os cenários.
-          3. Retorne APENAS um JSON válido com a chave "questions".
-          
-          FORMATO DO JSON:
-          {
-            "questions": [
-              {
-                "topic": "Estequiometria",
-                "text": "Enunciado...",
-                "options": ["A", "B", "C", "D", "E"],
-                "correctAnswer": 0, // Índice numérico (0-4)
-                "explanation": "Explicação ácida..."
-              }
-            ]
-          }`
+          REGRAS:
+          1. Retorne APENAS um JSON válido.
+          2. O formato deve ser: { "questions": [ { "topic": "...", "text": "...", "options": ["A", "B", "C", "D", "E"], "correctAnswer": 0, "explanation": "..." } ] }
+          3. As questões devem ser DIFERENTES entre si.
+          4. correctAnswer é o índice numérico (0 a 4).`
         },
         {
           role: "user",
-          content: `Gere ${count} questões sobre: ${topic}.
-          Contexto extra: ${customPrompt || "Desafios variados de pureza e rendimento"}.
-          Mantenha rigor nos cálculos e sarcasmo nas explicações.`
+          content: `Tema: ${topic}. Contexto: ${customPrompt || "Geral"}. Gere ${count} questões.`
         }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.5, // Aumentamos um pouco para garantir variedade
-      response_format: { "type": "json_object" }
+      temperature: 0.6, 
+      response_format: { type: "json_object" }
     });
 
-    let content = chatCompletion.choices[0].message.content;
-    const cleanJson = content.replace(/```json|```/g, "").trim();
-    const parsedContent = JSON.parse(cleanJson);
-
-    // Validação: Se a IA devolveu o objeto, pegamos o array 'questions'
-    const questionsArray = parsedContent.questions || [parsedContent];
-
-    console.log(`🧪 Cláudio sintetizou um lote de ${questionsArray.length} questões.`);
-    return questionsArray;
+    const content = completion.choices[0].message.content;
+    const parsed = JSON.parse(content);
+    
+    // Garante que retornamos um array
+    return parsed.questions || [parsed];
 
   } catch (error) {
-    console.error("⚠️ O Ácido reagiu mal:", error.message);
+    console.error("⚠️ Erro no Cláudio:", error.message);
     return fallbackQuestion(topic, count);
   }
 };
 
 /**
- * Fallback que gera array para não quebrar o frontend
+ * Fallback (Modo de Segurança) caso a IA falhe ou a chave expire
  */
 function fallbackQuestion(topic, count) {
-  const baseQuestion = {
+  const base = {
     topic: topic,
-    text: "O sistema de IA está temporariamente indisponível (FALHA NA SÍNTESE). Mas resolva esta: Qual a massa de 1 mol de H2O?",
-    options: ["10g", "16g", "18g", "20g", "2g"],
-    correctAnswer: 2,
-    explanation: "H=1, O=16. Logo, 2*1 + 16 = 18g/mol."
+    text: "O Cláudio está trocando as vidrarias (IA Indisponível). Responda: Qual a massa de 1 mol de Carbono?",
+    options: ["10g", "12g", "14g", "6g", "24g"],
+    correctAnswer: 1,
+    explanation: "A massa molar do Carbono na tabela periódica é 12g/mol."
   };
   
-  // Retorna um array com o número de questões pedidas (repetidas neste caso, pois é erro)
-  return Array(count).fill(baseQuestion).map((q, i) => ({
-    ...q, 
-    id: `fallback-${i}`,
-    text: `(Modo de Segurança ${i+1}) ${q.text}`
+  // Cria um array com o número de questões solicitadas
+  return Array(count).fill(base).map((q, i) => ({
+    ...q,
+    id: `fallback-${Date.now()}-${i}`,
+    text: `(Modo Offline ${i+1}) ${q.text}`
   }));
 }
 

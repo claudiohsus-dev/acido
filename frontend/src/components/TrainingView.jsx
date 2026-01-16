@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// 1. Defina a URL base do seu Render
+// URL DO SEU BACKEND NO RENDER
 const BACKEND_URL = 'https://acido-klur.onrender.com';
 
 const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
@@ -12,7 +12,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
   const [error, setError] = useState(null);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
 
-  // 2. BUSCA DE QUESTÕES (CORRIGIDO PARA O NOVO BACKEND)
+  // --- BUSCA QUESTÕES ---
   const fetchQuestions = async () => {
     setLoading(true);
     setError(null);
@@ -26,10 +26,10 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      if (!res.ok) throw new Error("Falha ao sintetizar as questões.");
+      if (!res.ok) throw new Error("Erro na comunicação com o laboratório.");
 
       const data = await res.json();
-      // Garante que seja sempre um array, mesmo se vier 1 questão
+      // Garante que seja array
       setQuestions(Array.isArray(data) ? data : [data]);
     } catch (err) {
       setError(err.message);
@@ -42,27 +42,25 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     fetchQuestions();
   }, []);
 
-  // 3. REGISTRO LOCAL (SEM FETCH PARA EVITAR ERRO 404)
+  // --- REGISTRA RESPOSTA LOCALMENTE ---
   const handleAnswer = (index) => {
     if (isAnswered) return;
     
     setSelectedOption(index);
     setIsAnswered(true);
 
-    const isCorrect = index === questions[currentIndex].correctAnswer;
-    if (isCorrect) {
+    if (index === questions[currentIndex].correctAnswer) {
       setCorrectAnswersCount(prev => prev + 1);
     }
-    // Removemos o fetch individual daqui para não dar erro,
-    // já que o backend agora só salva no final.
   };
 
-  // 4. FINALIZAR E SALVAR RANKING
+  // --- ENVIA TUDO PARA O BANCO NO FINAL ---
   const finalizarTreino = async () => {
     try {
       const errosCount = questions.length - correctAnswersCount;
-
-      const res = await fetch(`${BACKEND_URL}/api/update-stats`, {
+      
+      // Envia para a rota correta: update-stats
+      await fetch(`${BACKEND_URL}/api/update-stats`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -73,16 +71,15 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
           erros: errosCount 
         })
       });
-
-      if (!res.ok) console.error("Erro ao salvar no banco");
       
-      onFinish(); 
+      onFinish(); // Volta para o menu
     } catch (err) {
-      console.error("Erro na conexão final:", err);
+      console.error("Erro ao salvar progresso:", err);
       onFinish();
     }
   };
 
+  // --- NAVEGAÇÃO ---
   const handleNext = async () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -93,7 +90,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     }
   };
 
-  // -- INTERFACE (UI) --
+  // --- RENDERIZAÇÃO ---
   if (error) return (
     <div className="text-center py-20 bg-white rounded-[3rem] shadow-xl border border-red-100 max-w-2xl mx-auto">
       <div className="text-4xl mb-4">⚠️</div>
@@ -106,7 +103,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-      <p className="text-slate-500 font-medium">Sintetizando {numQuestions} questões com precisão...</p>
+      <p className="text-slate-500 font-medium">Sintetizando {numQuestions} questões...</p>
     </div>
   );
 
@@ -117,7 +114,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto pb-10">
       <div className="mb-8 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
-          <span>Módulo de Treinamento: {currentIndex + 1} / {questions.length}</span>
+          <span>Questão: {currentIndex + 1} / {questions.length}</span>
           <div className="flex gap-3">
              <span className="text-emerald-500">Acertos: {correctAnswersCount}</span>
              <span className="text-rose-400">Erros: {currentIndex - correctAnswersCount + (isAnswered && selectedOption !== currentQuestion.correctAnswer ? 1 : 0)}</span>
@@ -133,15 +130,15 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
 
       <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-indigo-900/5 border border-slate-100 mb-6">
         <div className="inline-block bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest mb-6">
-          {currentQuestion?.topic || 'Estequiometria'}
+          {currentQuestion.topic || 'Química'}
         </div>
         
         <h2 className="text-xl font-semibold text-slate-800 leading-relaxed mb-10">
-          {currentQuestion?.text}
+          {currentQuestion.text}
         </h2>
 
         <div className="grid grid-cols-1 gap-4">
-          {currentQuestion?.options.map((option, index) => {
+          {currentQuestion.options.map((option, index) => {
             let btnClass = "bg-slate-50 border-slate-200 hover:border-indigo-200 hover:bg-white";
             if (isAnswered) {
               if (index === currentQuestion.correctAnswer) {
@@ -180,10 +177,10 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
             </div>
             <div className="flex-1">
               <h3 className="text-xl font-black mb-3 italic uppercase tracking-tighter">
-                {selectedOption === currentQuestion.correctAnswer ? 'Análise Perfeita!' : 'Falha na Reação!'}
+                {selectedOption === currentQuestion.correctAnswer ? 'Correto!' : 'Incorreto'}
               </h3>
               <div className="text-slate-400 text-sm leading-relaxed font-mono bg-slate-800/40 p-5 rounded-2xl border border-white/5 whitespace-pre-line">
-                {currentQuestion.explanation?.replaceAll('. ', '.\n\n')}
+                {currentQuestion.explanation}
               </div>
             </div>
           </div>
@@ -192,7 +189,7 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions }) => {
             onClick={handleNext}
             className="w-full bg-white text-slate-900 py-5 rounded-[1.5rem] font-black hover:bg-indigo-50 transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 uppercase text-[10px] tracking-[0.2em]"
           >
-            {currentIndex < questions.length - 1 ? 'Prosseguir para Próxima Etapa' : 'Finalizar e Consolidar XP'}
+            {currentIndex < questions.length - 1 ? 'Próxima Questão' : 'Finalizar Treino'}
           </button>
         </div>
       )}
