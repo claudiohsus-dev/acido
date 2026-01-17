@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import ResultsModal from './ResultsModal'; // Certifique-se que o arquivo existe na mesma pasta
+import ResultsModal from './ResultsModal';
 
 const BACKEND_URL = 'https://acido-klur.onrender.com';
 
@@ -12,11 +12,10 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
   const [error, setError] = useState(null);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [reported, setReported] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
   
-  // --- ESTADO PARA CONTROLAR A EXIBIÇÃO DO MODAL ---
   const [showResults, setShowResults] = useState(false);
 
-  // --- SISTEMA DE COMBO E DICA ---
   const [combo, setCombo] = useState(0);
   const [eliminatedOptions, setEliminatedOptions] = useState([]);
   const [fraseDica, setFraseDica] = useState("");
@@ -66,6 +65,44 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
     }
   };
 
+  // --- NOVA FUNÇÃO: CORRIGIR GABARITO NO BANCO ---
+  const handleFixQuestion = async () => {
+    if (isCorrecting) return;
+    const currentQ = questions[currentIndex];
+    
+    setIsCorrecting(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/fix-question`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ 
+          questionId: currentQ.id, 
+          newCorrectAnswer: selectedOption 
+        })
+      });
+
+      if (res.ok) {
+        // Atualiza localmente para o usuário não ser prejudicado
+        setCorrectAnswersCount(prev => prev + 1);
+        setCombo(prev => prev + 1);
+        
+        // Atualiza o objeto da questão na lista local
+        const updatedQuestions = [...questions];
+        updatedQuestions[currentIndex].correctAnswer = selectedOption;
+        setQuestions(updatedQuestions);
+        
+        alert("Cláudio: 'Filtrei as impurezas! Essa questão foi corrigida no banco.'");
+      }
+    } catch (err) {
+      console.error("Erro ao corrigir amostra:", err);
+    } finally {
+      setIsCorrecting(false);
+    }
+  };
+
   const pedirSocorro = () => {
     if (isAnswered) return;
     const currentQ = questions[currentIndex];
@@ -98,8 +135,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
           erros: errosCount 
         })
       });
-      
-      // DISPARA O MODAL DE RESULTADOS
       setShowResults(true);
     } catch (err) {
       setShowResults(true);
@@ -149,7 +184,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto pb-10 px-4">
-      {/* HUD de Progresso */}
       <div className="mb-8 bg-white/80 backdrop-blur-md p-5 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-3 tracking-[0.2em]">
           <span>{isSurvival ? "⚠️ MODO MORTE SÚBITA" : `Molécula ${currentIndex + 1} de ${questions.length}`}</span>
@@ -166,7 +200,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
         </div>
       </div>
 
-      {/* Card da Questão */}
       <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 mb-6 relative overflow-hidden">
         {!isAnswered && (
           <button 
@@ -230,7 +263,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
         </div>
       </div>
 
-      {/* Feedback e Explicação */}
       {isAnswered && (
         <div className={`bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500 relative ${!isCorrect ? 'glitch-error' : ''}`}>
           <div className="absolute -top-4 left-10 bg-lime-500 text-slate-900 px-4 py-1 rounded-full text-[10px] font-black uppercase italic">
@@ -252,6 +284,17 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
                 <span className="text-lime-400 font-bold block mb-1 uppercase text-[10px]">A lógica:</span>
                 {currentQuestion.explanation}
               </div>
+
+              {/* BOTÃO DE CORREÇÃO DE GABARITO */}
+              {!isCorrect && (
+                <button 
+                  onClick={handleFixQuestion}
+                  disabled={isCorrecting}
+                  className="mt-4 text-[9px] font-black text-rose-400 hover:text-white uppercase tracking-widest flex items-center gap-2 transition-all bg-rose-500/10 px-3 py-2 rounded-lg border border-rose-500/20 hover:bg-rose-500/20"
+                >
+                  {isCorrecting ? '⏳ Processando...' : '🛠️ Marcar minha resposta como a correta'}
+                </button>
+              )}
             </div>
           </div>
           
@@ -270,7 +313,6 @@ const TrainingView = ({ token, onFinish, customPrompt, numQuestions, isSurvival 
         </div>
       )}
 
-      {/* RENDERIZAÇÃO CONDICIONAL DO MODAL */}
       {showResults && (
         <ResultsModal 
           acertos={correctAnswersCount} 
