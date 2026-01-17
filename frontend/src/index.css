@@ -6,9 +6,55 @@
     @apply shadow-[0_0_15px_rgba(132,204,22,0.5)];
     animation: pulsa-acido 2s infinite;
   }
+
+  /* --- NOVO: Modo Exotérmico (Fogo) --- */
+  .exotermico {
+    background: linear-gradient(90deg, #f59e0b, #ef4444, #f59e0b) !important;
+    background-size: 200% 100% !important;
+    animation: bg-pan 1.5s linear infinite, shake 0.5s infinite !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.8) !important;
+  }
+
+  /* --- NOVO: Efeito Glitch de Erro --- */
+  .glitch-error {
+    animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite;
+    position: relative;
+    border: 2px solid #f43f5e !important;
+  }
+}
+
+/* Animação de tremor para o combo alto */
+@keyframes shake {
+  0% { transform: translate(0); }
+  25% { transform: translate(1px, 1px); }
+  50% { transform: translate(-1px, -1px); }
+  75% { transform: translate(1px, -1px); }
+  100% { transform: translate(0); }
+}
+
+/* Animação do gradiente correndo na barra */
+@keyframes bg-pan {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Animação de distorção para erro crítico */
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px) skewX(2deg); filter: hue-rotate(90deg); }
+  40% { transform: translate(-2px, -2px); filter: brightness(1.5); }
+  60% { transform: translate(2px, 2px) skewX(-2deg); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
 }
 
 @keyframes pulsa-acido {
-  0%, 100% { filter: brightness(1); shadow: 0 0 10px rgba(132,204,22,0.6); }
-  50% { filter: brightness(1.2); shadow: 0 0 20px rgba(132,204,22,0.9); }
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+/* Transição suave para opções eliminadas pela dica */
+.opacity-20 {
+  transition: all 0.5s ease;
+  pointer-events: none;
 }
