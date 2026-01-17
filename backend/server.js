@@ -46,12 +46,14 @@ app.post('/api/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro no login" }); }
 });
 
-// 2. GERAÇÃO DE QUESTÕES (COM CORREÇÃO DE ID PARA NOVAS QUESTÕES)
+// 2. GERAÇÃO DE QUESTÕES (AGORA COM ANÁLISE DE CONTEXTO)
 app.get('/api/generate-question', authenticate, async (req, res) => {
   try {
     const topic = req.query.topic || "Estequiometria";
+    const customPrompt = req.query.customPrompt || "";
     const count = Math.min(parseInt(req.query.count) || 1, 5); 
 
+    // Busca questões aleatórias já existentes para servir ao usuário
     const cachedQuestions = await Question.findAll({
       where: { topic: topic },
       order: sequelize.random(),
@@ -63,30 +65,48 @@ app.get('/api/generate-question', authenticate, async (req, res) => {
       return res.json(cachedQuestions);
     }
 
-    console.log(`🤖 Cache miss: ${topic}`);
-    const aiQuestions = await generateEnemQuestion(topic, "", count);
+    console.log(`🤖 Cache miss: ${topic}. Solicitando reforço ao Cláudio...`);
+
+    // --- NOVA LÓGICA DE CONTEXTO ---
+    // Busca as questões existentes (mesmo que poucas) para enviar à IA como contexto de NÃO REPETIÇÃO
+    const existingForContext = await Question.findAll({
+      where: { topic: topic },
+      attributes: ['text'],
+      limit: 10 // Enviamos as últimas 10 para a IA ter base
+    });
+
+    // Chama a IA passando o que já existe no banco
+    const aiQuestions = await generateEnemQuestion(topic, customPrompt, count, existingForContext);
     
-    // Salva e recupera as questões com os IDs reais do banco
     const savedQuestions = [];
     for (const q of aiQuestions) {
-      const newQ = await Question.create({
-        topic: topic,
-        text: q.text,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        explanation: q.explanation
+      // Evita duplicatas exatas caso a IA ignore o sistema de contexto (segurança extra)
+      const [newQ, created] = await Question.findOrCreate({
+        where: { text: q.text },
+        defaults: {
+          topic: topic,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation
+        }
       });
       savedQuestions.push(newQ);
     }
 
-    res.json(savedQuestions);
+    // Se a IA gerou menos do que o total esperado pelo frontend, 
+    // mesclamos com o que já tínhamos no cache para não dar erro
+    const finalResponse = savedQuestions.length >= count 
+      ? savedQuestions 
+      : [...savedQuestions, ...cachedQuestions].slice(0, count);
+
+    res.json(finalResponse);
   } catch (error) {
     console.error("Erro na geração/caching:", error);
     res.status(500).json({ error: "Falha na geração de questões." });
   }
 });
 
-// --- NOVO: ROTA PARA CORRIGIR GABARITO ---
+// 3. ROTA PARA CORRIGIR GABARITO
 app.post('/api/fix-question', authenticate, async (req, res) => {
   try {
     const { questionId, newCorrectAnswer } = req.body;
@@ -105,7 +125,7 @@ app.post('/api/fix-question', authenticate, async (req, res) => {
   }
 });
 
-// 3. BUSCAR ESTATÍSTICAS
+// 4. BUSCAR ESTATÍSTICAS
 app.get('/api/stats', authenticate, async (req, res) => {
   if (!req.user.id) return res.status(401).json({ error: "Acesso negado" });
   try {
@@ -119,7 +139,7 @@ app.get('/api/stats', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro ao buscar stats" }); }
 });
 
-// 4. ATUALIZAR ESTATÍSTICAS
+// 5. ATUALIZAR ESTATÍSTICAS
 app.post('/api/update-stats', authenticate, async (req, res) => {
   if (!req.user.id) return res.json({ success: true, msg: "Visitante não salva progresso" });
   try {
@@ -133,7 +153,7 @@ app.post('/api/update-stats', authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro ao salvar stats" }); }
 });
 
-// 5. RANKING
+// 6. RANKING
 app.get('/api/rankings', async (req, res) => {
   try {
     const users = await User.findAll({ 
