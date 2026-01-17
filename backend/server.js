@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const { User, sequelize } = require('./models');
+const { User, Question, sequelize } = require('./models'); // Importado Question
 const { generateEnemQuestion } = require('./geminiService');
 
 const app = express();
@@ -46,27 +46,55 @@ app.post('/api/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Erro no login" }); }
 });
 
-// 2. GERAÇÃO DE QUESTÕES
+// 2. GERAÇÃO DE QUESTÕES (AGORA COM CACHING)
 app.get('/api/generate-question', authenticate, async (req, res) => {
   try {
     const topic = req.query.topic || "Estequiometria";
-    const prompt = req.query.customPrompt || "";
     const count = Math.min(parseInt(req.query.count) || 1, 5); 
+
+    // A. Tenta buscar no banco de dados primeiro
+    const cachedQuestions = await Question.findAll({
+      where: { topic: topic },
+      order: sequelize.random(), // Sorteia as questões salvas
+      limit: count
+    });
+
+    // B. Se houver questões suficientes no banco, retorna elas
+    if (cachedQuestions.length >= count) {
+      console.log(`📦 Retornando ${count} questões do banco (Cache hit) para: ${topic}`);
+      return res.json(cachedQuestions);
+    }
+
+    // C. Se não houver o suficiente, chama a IA
+    console.log(`🤖 Chamando IA para gerar questões (Cache miss) para: ${topic}`);
+    const aiQuestions = await generateEnemQuestion(topic, "", count);
     
-    const questions = await generateEnemQuestion(topic, prompt, count);
-    
-    const questionsWithIds = questions.map((q, i) => ({
+    // D. Salva as novas questões no banco para usos futuros
+    // Usamos Promise.allSettled para não travar se uma questão for duplicada
+    await Promise.allSettled(aiQuestions.map(q => 
+      Question.create({
+        topic: topic,
+        text: q.text,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation
+      })
+    ));
+
+    // E. Retorna as questões geradas pela IA
+    const questionsWithIds = aiQuestions.map((q, i) => ({
       ...q,
       id: `${Date.now()}-${i}`
     }));
 
     res.json(questionsWithIds);
   } catch (error) {
-    res.status(500).json({ error: "Falha na geração." });
+    console.error("Erro na geração/caching:", error);
+    res.status(500).json({ error: "Falha na geração de questões." });
   }
 });
 
-// 3. BUSCAR ESTATÍSTICAS (A que estava dando 404)
+// 3. BUSCAR ESTATÍSTICAS
 app.get('/api/stats', authenticate, async (req, res) => {
   if (!req.user.id) return res.status(401).json({ error: "Acesso negado" });
   
