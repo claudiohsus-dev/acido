@@ -12,26 +12,37 @@ const App = () => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [numQuestions, setNumQuestions] = useState(1);
 
+  // Busca o ranking de usuários
   const fetchRankings = async () => {
     try {
       const res = await fetch(`${API_URL}/rankings`);
       const data = await res.json();
       setRankings(Array.isArray(data) ? data : []);
-    } catch (err) { console.error("Falha ao carregar ranking"); }
+    } catch (err) { 
+      console.error("Falha ao carregar ranking"); 
+    }
+  };
+
+  // Busca dados do usuário logado
+  const fetchUserStats = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.username && data.username !== "Visitante") {
+        setUser(data);
+      } else {
+        handleLogout();
+      }
+    } catch (err) {
+      handleLogout();
+    }
   };
 
   useEffect(() => {
-    if (token) {
-      fetch(`${API_URL}/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.username && data.username !== "Visitante") setUser(data);
-        else if (data.error) handleLogout();
-      })
-      .catch(() => handleLogout());
-    }
+    fetchUserStats();
     fetchRankings();
   }, [token]);
 
@@ -47,7 +58,7 @@ const App = () => {
     localStorage.removeItem('token');
   };
 
-  // Cálculo de XP para a barra (0 a 100%)
+  // Lógica de XP baseada em acertos (cada 10 acertos = 1 nível)
   const xpPercentage = user ? (user.total_acertos % 10) * 10 : 0;
   const nextLevelThreshold = user ? 10 - (user.total_acertos % 10) : 10;
 
@@ -76,7 +87,6 @@ const App = () => {
                 <span className="bg-slate-900 px-6 py-2 rounded-xl shadow-md font-bold text-lime-400 border border-lime-500/50 block cursor-help">
                    Lvl {user?.nivel || 1}
                 </span>
-                {/* Tooltip de XP */}
                 <div className="absolute -bottom-10 right-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                   Faltam {nextLevelThreshold} acertos para o Lvl {(user?.nivel || 1) + 1}
                 </div>
@@ -84,10 +94,9 @@ const App = () => {
               <button onClick={handleLogout} className="ml-2 text-slate-400 hover:text-rose-500 font-bold text-xs uppercase transition-colors">Sair</button>
             </div>
             
-            {/* Barra de Progresso Animada */}
             <div className="w-full md:w-64 bg-slate-200 h-2 rounded-full overflow-hidden border border-slate-300 relative">
               <div 
-                className="bg-lime-500 h-full transition-all duration-1000 ease-out shadow-[0_0_12px_#84cc16]"
+                className="bg-lime-500 h-full transition-all duration-1000 ease-out shadow-[0_0_12px_#84cc16] barra-progresso-acido"
                 style={{ width: `${xpPercentage}%` }}
               />
             </div>
@@ -102,8 +111,8 @@ const App = () => {
             onFinish={() => {
               setView('menu');
               setCustomPrompt(''); 
-              // Força a atualização dos stats chamando o efeito novamente
-              setToken(localStorage.getItem('token'));
+              // Atualiza stats e rankings imediatamente após o treino
+              fetchUserStats();
               fetchRankings();
             }} 
           />

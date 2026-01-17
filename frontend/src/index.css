@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Estilização customizada para o brilho do Cláudio */
+@layer components {
+  .barra-progresso-acido {
+    @apply shadow-[0_0_15px_rgba(132,204,22,0.5)];
+    animation: pulsa-acido 2s infinite;
+  }
+}
+
+@keyframes pulsa-acido {
+  0%, 100% { filter: brightness(1); shadow: 0 0 10px rgba(132,204,22,0.6); }
+  50% { filter: brightness(1.2); shadow: 0 0 20px rgba(132,204,22,0.9); }
+}
